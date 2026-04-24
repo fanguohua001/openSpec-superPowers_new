@@ -1,74 +1,74 @@
-# AI Chat Design
+# AI 聊天设计
 
-## Goal
+## 目标
 
-Add a persistent AI chat feature to the RuoYi management system. The first version appears under the existing System Tools menu as AI Chat, supports streaming model responses, stores user sessions and messages, and reads model provider settings from `sys_config`.
+在 RuoYi 管理系统中新增一个可持久化的 AI 聊天功能。首版入口位于现有“系统工具”菜单下，名称为“AI 聊天”。功能支持流式模型响应、按用户保存会话和消息，并从 `sys_config` 读取模型服务配置。
 
-The provider protocol is not guaranteed, so the implementation uses a small adapter boundary. The default adapter targets OpenAI Chat Completions compatible streaming APIs.
+由于第三方模型服务协议暂不确定，系统会引入一个轻量的模型适配层。默认适配器按照 OpenAI Chat Completions 兼容的流式接口实现。
 
-## Scope
+## 范围
 
-In scope:
+本次包含：
 
-- AI chat menu entry under the existing System Tools menu.
-- Per-user chat sessions and message history.
-- Streaming assistant responses.
-- Model configuration from `sys_config`.
-- Default OpenAI-compatible streaming adapter.
-- Basic permission checks for list, send, and delete operations.
-- Failure persistence for model or stream errors.
+- 在现有“系统工具”菜单下新增 AI 聊天入口。
+- 支持按用户隔离的聊天会话和消息历史。
+- 支持助手回复流式返回。
+- 从 `sys_config` 读取模型服务配置。
+- 提供默认 OpenAI 兼容流式适配器。
+- 提供会话列表、发送消息、删除会话的基础权限控制。
+- 模型服务或流式处理失败时持久化失败状态。
 
-Out of scope:
+本次不包含：
 
-- Multi-provider management pages.
-- Knowledge base, file upload, web search, and retrieval augmented generation.
-- Token-accurate context trimming.
-- Cross-request server-side cancellation registry.
-- A dedicated model configuration table.
+- 多模型服务管理页面。
+- 知识库、文件上传、联网搜索和检索增强生成。
+- 精确按 token 裁剪上下文。
+- 跨请求的服务端取消任务注册表。
+- 独立的模型配置表。
 
-## Architecture
+## 架构
 
-The feature has four layers.
+功能分为四层。
 
-1. Frontend chat page
+1. 前端聊天页面
 
-   Add `ruoyi-ui/src/views/tool/aiChat/index.vue` and `ruoyi-ui/src/api/tool/aiChat.js`. The page contains a session list, message view, input area, send button, and stop button. During streaming, the assistant message is appended incrementally.
+   新增 `ruoyi-ui/src/views/tool/aiChat/index.vue` 和 `ruoyi-ui/src/api/tool/aiChat.js`。页面包含会话列表、消息区域、输入框、发送按钮和停止按钮。流式返回时，前端逐步追加助手消息内容。
 
-2. Backend controller
+2. 后端控制器
 
-   Add an `AiChatController` under `ruoyi-admin`. It exposes session, message, delete, and streaming send endpoints under `/tool/aiChat`. Permissions follow the existing RuoYi `@PreAuthorize("@ss.hasPermi(...)")` style.
+   在 `ruoyi-admin` 中新增 `AiChatController`。接口统一放在 `/tool/aiChat` 下，提供会话、消息、删除和流式发送能力。权限校验沿用 RuoYi 现有 `@PreAuthorize("@ss.hasPermi(...)")` 风格。
 
-3. Business and persistence layer
+3. 业务与持久化层
 
-   Add AI chat domain, mapper, and service classes under `ruoyi-system`. The service owns session validation, user isolation, message persistence, context loading, and assistant message status updates.
+   在 `ruoyi-system` 中新增 AI 聊天的 domain、mapper 和 service。Service 负责会话校验、用户隔离、消息保存、上下文加载和助手消息状态更新。
 
-4. Model adapter layer
+4. 模型适配层
 
-   Add a lightweight adapter boundary used by the service. The first adapter reads provider settings from `sys_config`, sends a streaming chat request to an OpenAI-compatible endpoint, parses SSE chunks, and calls back with response deltas. If the actual provider later differs, add a new adapter without changing the controller or frontend contract.
+   新增一个轻量模型适配边界供 Service 调用。首个适配器从 `sys_config` 读取模型服务配置，向 OpenAI 兼容接口发送流式聊天请求，解析 SSE 数据块，并通过回调返回增量文本。后续如果实际第三方服务协议不同，只新增新的适配器，不修改 Controller 和前端契约。
 
-## Data Model
+## 数据模型
 
-Add `ai_chat_session`:
+新增 `ai_chat_session`：
 
-- `session_id`: primary key.
-- `user_id`: owner user ID. All reads and deletes filter by this field.
-- `title`: session title. The default title is derived from the first user message.
-- `model`: model name used for the session or latest send.
-- `status`: `0` normal, `1` deleted or disabled.
-- `create_by`, `create_time`, `update_by`, `update_time`, `remark`: RuoYi-style audit fields.
+- `session_id`：主键。
+- `user_id`：会话所属用户 ID。所有查询和删除都按该字段隔离。
+- `title`：会话标题。默认从第一条用户消息中截取生成。
+- `model`：会话或最近一次发送使用的模型名。
+- `status`：`0` 正常，`1` 删除或停用。
+- `create_by`、`create_time`、`update_by`、`update_time`、`remark`：沿用 RuoYi 风格的审计字段。
 
-Add `ai_chat_message`:
+新增 `ai_chat_message`：
 
-- `message_id`: primary key.
-- `session_id`: owning session.
-- `user_id`: redundant owner user ID for simpler filtering and cleanup.
-- `role`: `user`, `assistant`, or `system`.
-- `content`: message content, stored as `longtext`.
-- `status`: `0` normal, `1` generating, `2` failed.
-- `error_message`: failure reason for failed assistant messages.
-- `create_time`: message creation time.
+- `message_id`：主键。
+- `session_id`：所属会话。
+- `user_id`：冗余保存所属用户 ID，便于过滤和清理。
+- `role`：`user`、`assistant` 或 `system`。
+- `content`：消息内容，使用 `longtext`。
+- `status`：`0` 正常，`1` 生成中，`2` 失败。
+- `error_message`：助手消息失败时保存失败原因。
+- `create_time`：消息创建时间。
 
-Add `sys_config` rows:
+新增 `sys_config` 配置：
 
 - `ai.chat.baseUrl`
 - `ai.chat.apiKey`
@@ -76,93 +76,93 @@ Add `sys_config` rows:
 - `ai.chat.temperature`
 - `ai.chat.timeoutSeconds`
 
-The API key is sensitive. The backend reads the real value for requests. The frontend must not casually expose the plaintext value; if the generic system-parameter page is reused, implementation should avoid adding any AI-specific plaintext display.
+`apiKey` 属于敏感信息。后端请求模型服务时读取真实值。前端不应随意展示明文；如果复用通用系统参数页面，实现时需要避免新增任何 AI 专属的明文展示逻辑。
 
-Add `sys_menu` rows:
+新增 `sys_menu` 数据：
 
-- Menu under the existing System Tools menu: AI Chat, path `tool/aiChat/index`.
-- Permissions: `tool:aiChat:list`, `tool:aiChat:send`, `tool:aiChat:remove`.
+- 在现有“系统工具”菜单下新增“AI 聊天”，路径为 `tool/aiChat/index`。
+- 权限标识：`tool:aiChat:list`、`tool:aiChat:send`、`tool:aiChat:remove`。
 
-## Backend API
+## 后端接口
 
-Use `/tool/aiChat` as the base path.
+统一使用 `/tool/aiChat` 作为基础路径。
 
-- `GET /tool/aiChat/session/list`: page current user's sessions.
-- `POST /tool/aiChat/session`: create an empty session.
-- `GET /tool/aiChat/session/{sessionId}/messages`: list messages for one current-user session.
-- `DELETE /tool/aiChat/session/{sessionIds}`: delete current-user sessions.
-- `POST /tool/aiChat/session/{sessionId}/message/stream`: send a user message in an existing session and stream the assistant response.
-- `POST /tool/aiChat/message/stream`: send without a session; the backend creates a session and streams the assistant response.
+- `GET /tool/aiChat/session/list`：分页查询当前用户的会话。
+- `POST /tool/aiChat/session`：创建空会话。
+- `GET /tool/aiChat/session/{sessionId}/messages`：查询当前用户某个会话的消息。
+- `DELETE /tool/aiChat/session/{sessionIds}`：删除当前用户的会话。
+- `POST /tool/aiChat/session/{sessionId}/message/stream`：在已有会话中发送用户消息，并流式返回助手回复。
+- `POST /tool/aiChat/message/stream`：无会话发送消息，由后端自动创建会话并流式返回助手回复。
 
-Streaming responses use `text/event-stream`.
+流式响应使用 `text/event-stream`。
 
-Server events:
+服务端事件：
 
-- `session`: emitted when a session is created automatically. Includes `sessionId` and `title`.
-- `message`: includes the persisted user message ID and assistant message ID.
-- `delta`: assistant response text fragment.
-- `done`: generation completed.
-- `error`: generation failed.
+- `session`：自动创建会话时发送，包含 `sessionId` 和 `title`。
+- `message`：包含已保存的用户消息 ID 和助手消息 ID。
+- `delta`：助手回复的增量文本。
+- `done`：生成完成。
+- `error`：生成失败。
 
-## Streaming Flow
+## 流式处理流程
 
-1. Receive and validate user input.
-2. Create or validate the session for the current user.
-3. Persist the user message.
-4. Persist an assistant message with status `1` generating.
-5. Load the latest context messages for the session.
-6. Call the model adapter with `stream: true`.
-7. For each model delta, emit a `delta` event and append the text to an in-memory buffer.
-8. On normal completion, update the assistant message content and mark status `0`.
-9. On provider, network, parser, or stream error, mark the assistant message status `2`, store `error_message`, and emit an `error` event.
+1. 接收并校验用户输入。
+2. 创建或校验当前用户的会话。
+3. 保存用户消息。
+4. 保存一条状态为 `1` 生成中的助手消息。
+5. 加载该会话最近的上下文消息。
+6. 调用模型适配器，并设置 `stream: true`。
+7. 每收到一个模型增量，就发送一个 `delta` 事件，并把文本追加到内存缓冲区。
+8. 正常完成时，更新助手消息内容，并把状态改为 `0`。
+9. 如果出现模型服务、网络、解析或流式处理错误，把助手消息状态改为 `2`，写入 `error_message`，并发送 `error` 事件。
 
-Context strategy:
+上下文策略：
 
-- Send only recent session messages to the model.
-- Default history window is 20 messages.
-- Send only `role` and `content`.
-- Do not implement token-accurate trimming in the first version.
+- 只向模型发送当前会话的最近消息。
+- 默认上下文窗口为最近 20 条消息。
+- 只发送 `role` 和 `content`。
+- 首版不做精确 token 裁剪。
 
-Stop behavior:
+停止行为：
 
-- The frontend stop button closes the current request connection.
-- The backend should stop reading the provider stream when it detects disconnection.
-- If partial content exists, implementation may either persist it with a failed status or persist the partial assistant content with a clear failure message. The chosen behavior must be tested and documented in the task plan.
+- 前端停止按钮关闭当前请求连接。
+- 后端检测到连接断开后，应尽量停止继续读取模型服务流。
+- 如果已经生成了部分内容，实现时可以选择“保存部分内容并标记失败”，或“保存部分内容并附带清晰失败信息”。具体策略在实现计划中确定，并配套验证。
 
-## Frontend UX
+## 前端交互
 
-The page follows the existing RuoYi and Element UI management style.
+页面沿用现有 RuoYi 和 Element UI 管理台风格。
 
-- Left panel: session list with create, select, and delete actions.
-- Right panel: message area with visual distinction between user and assistant messages.
-- Bottom input: message box, send button, stop button.
-- Sending state: prevent duplicate sends while a stream is active.
-- Streaming state: append assistant content as `delta` events arrive.
-- Error state: show the failed assistant message in place and keep the user message.
-- Refresh state: reload persisted sessions and messages after page refresh.
+- 左侧：会话列表，支持新建、选择和删除。
+- 右侧：消息区域，区分展示用户消息和助手消息。
+- 底部：输入框、发送按钮、停止按钮。
+- 发送中：禁止重复发送。
+- 流式中：收到 `delta` 事件后持续追加助手内容。
+- 异常时：在当前助手消息位置展示失败状态，并保留用户消息。
+- 刷新后：重新加载已持久化的会话和消息历史。
 
-Permissions:
+权限：
 
-- Without `tool:aiChat:list`, the menu/page is unavailable.
-- Without `tool:aiChat:send`, sending is disabled or rejected.
-- Without `tool:aiChat:remove`, deleting sessions is unavailable.
+- 没有 `tool:aiChat:list` 时，不展示菜单或无法访问页面。
+- 没有 `tool:aiChat:send` 时，禁止发送或由后端拒绝。
+- 没有 `tool:aiChat:remove` 时，不展示删除会话能力。
 
-## Verification
+## 验证标准
 
-Backend verification:
+后端验证：
 
-- Service tests cover current-user session ownership checks.
-- Service tests cover user and assistant message persistence.
-- Configuration tests cover missing `baseUrl`, `apiKey`, or `model`.
-- Adapter tests cover streaming callback behavior using a controlled fake stream.
-- Error tests cover failed model calls and assistant message failure persistence.
+- Service 测试覆盖当前用户会话归属校验。
+- Service 测试覆盖用户消息和助手消息保存。
+- 配置测试覆盖缺少 `baseUrl`、`apiKey` 或 `model` 的错误。
+- Adapter 测试使用可控假流覆盖流式回调行为。
+- 错误测试覆盖模型调用失败和助手消息失败状态持久化。
 
-Frontend and integration verification:
+前端与集成验证：
 
-- Frontend build succeeds.
-- SQL initializes the menu under the existing System Tools menu.
-- Admin can open AI Chat.
-- With valid `sys_config`, a user can send a message and see streaming deltas.
-- Refreshing the page preserves session and message history.
-- A user cannot read another user's sessions.
-- Provider failure persists the user message, persists a failed assistant message, and shows an error in the UI.
+- 前端构建成功。
+- SQL 初始化后，“系统工具”菜单下出现“AI 聊天”。
+- 管理员可以打开 AI 聊天页面。
+- 配置有效 `sys_config` 后，用户可以发送消息并看到流式增量。
+- 刷新页面后，会话和消息历史仍然存在。
+- 用户不能读取其他用户的会话。
+- 模型服务失败时，用户消息落库，助手失败消息落库，页面显示错误。
