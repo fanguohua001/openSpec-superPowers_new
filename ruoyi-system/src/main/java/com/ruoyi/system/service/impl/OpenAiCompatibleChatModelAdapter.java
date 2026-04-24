@@ -9,6 +9,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Consumer;
 import org.springframework.stereotype.Service;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
@@ -29,10 +30,36 @@ public class OpenAiCompatibleChatModelAdapter implements IAiChatModelAdapter
     @Override
     public void streamChat(AiChatConfig config, List<AiChatContextMessage> messages, AiChatStreamListener listener)
     {
+        try
+        {
+            streamChatCompletions(config, messages, listener);
+        }
+        catch (EndpointNotFoundException e)
+        {
+            streamResponses(config, messages, listener);
+        }
+    }
+
+    private void streamChatCompletions(AiChatConfig config, List<AiChatContextMessage> messages,
+            AiChatStreamListener listener)
+    {
+        streamRequest(config, buildCompletionsUrl(config.getBaseUrl()), buildChatCompletionsRequestBody(config, messages),
+                line -> handleSseLine(line, listener));
+    }
+
+    private void streamResponses(AiChatConfig config, List<AiChatContextMessage> messages,
+            AiChatStreamListener listener)
+    {
+        streamRequest(config, buildResponsesUrl(config.getBaseUrl()), buildResponsesRequestBody(config, messages),
+                line -> handleResponsesSseLine(line, listener));
+    }
+
+    private void streamRequest(AiChatConfig config, String requestUrl, String requestBody, Consumer<String> lineHandler)
+    {
         HttpURLConnection connection = null;
         try
         {
-            URL url = new URL(config.getBaseUrl() + "/v1/chat/completions");
+            URL url = new URL(requestUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(config.getTimeoutSeconds() * 1000);
@@ -42,7 +69,7 @@ public class OpenAiCompatibleChatModelAdapter implements IAiChatModelAdapter
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setRequestProperty("Accept", "text/event-stream");
 
-            byte[] body = buildRequestBody(config, messages).getBytes(StandardCharsets.UTF_8);
+            byte[] body = requestBody.getBytes(StandardCharsets.UTF_8);
             try (OutputStream outputStream = connection.getOutputStream())
             {
                 outputStream.write(body);
@@ -51,6 +78,10 @@ public class OpenAiCompatibleChatModelAdapter implements IAiChatModelAdapter
             int responseCode = connection.getResponseCode();
             if (responseCode >= HttpURLConnection.HTTP_BAD_REQUEST)
             {
+                if (responseCode == HttpURLConnection.HTTP_NOT_FOUND)
+                {
+                    throw new EndpointNotFoundException();
+                }
                 throw new ServiceException("AI服务请求失败：" + readBody(connection.getErrorStream()));
             }
 
@@ -60,7 +91,7 @@ public class OpenAiCompatibleChatModelAdapter implements IAiChatModelAdapter
                 String line;
                 while ((line = reader.readLine()) != null)
                 {
-                    handleSseLine(line, listener);
+                    lineHandler.accept(line);
                 }
             }
         }
@@ -112,7 +143,63 @@ public class OpenAiCompatibleChatModelAdapter implements IAiChatModelAdapter
         }
     }
 
-    private String buildRequestBody(AiChatConfig config, List<AiChatContextMessage> messages)
+    String buildCompletionsUrl(String baseUrl)
+    {
+        String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+        if (normalizedBaseUrl.endsWith("/v1"))
+        {
+            return normalizedBaseUrl + "/chat/completions";
+        }
+        return normalizedBaseUrl + "/v1/chat/completions";
+    }
+
+    String buildResponsesUrl(String baseUrl)
+    {
+        String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+        if (normalizedBaseUrl.endsWith("/v1"))
+        {
+            return normalizedBaseUrl + "/responses";
+        }
+        return normalizedBaseUrl + "/v1/responses";
+    }
+
+    void handleResponsesSseLine(String line, AiChatStreamListener listener)
+    {
+        if (StringUtils.isBlank(line) || !line.startsWith("data:"))
+        {
+            return;
+        }
+        String data = line.substring("data:".length()).trim();
+        if ("[DONE]".equals(data))
+        {
+            listener.onDone();
+            return;
+        }
+
+        JSONObject payload = JSON.parseObject(data);
+        String type = payload.getString("type");
+        if ("response.output_text.delta".equals(type))
+        {
+            String delta = payload.getString("delta");
+            if (delta != null)
+            {
+                listener.onDelta(delta);
+            }
+        }
+        if ("response.completed".equals(type))
+        {
+            listener.onDone();
+        }
+        if ("response.failed".equals(type))
+        {
+            JSONObject response = payload.getJSONObject("response");
+            JSONObject error = response == null ? null : response.getJSONObject("error");
+            String message = error == null ? "AI服务响应失败" : error.getString("message");
+            throw new ServiceException(message);
+        }
+    }
+
+    private String buildChatCompletionsRequestBody(AiChatConfig config, List<AiChatContextMessage> messages)
     {
         JSONObject body = new JSONObject();
         body.put("model", config.getModel());
@@ -131,6 +218,35 @@ public class OpenAiCompatibleChatModelAdapter implements IAiChatModelAdapter
         return body.toJSONString();
     }
 
+    private String buildResponsesRequestBody(AiChatConfig config, List<AiChatContextMessage> messages)
+    {
+        JSONObject body = new JSONObject();
+        body.put("model", config.getModel());
+        body.put("stream", true);
+        body.put("temperature", config.getTemperature());
+
+        JSONArray messageArray = new JSONArray();
+        for (AiChatContextMessage message : messages)
+        {
+            JSONObject item = new JSONObject();
+            item.put("role", message.getRole());
+            item.put("content", message.getContent());
+            messageArray.add(item);
+        }
+        body.put("input", messageArray);
+        return body.toJSONString();
+    }
+
+    private String normalizeBaseUrl(String baseUrl)
+    {
+        String normalizedBaseUrl = StringUtils.trim(baseUrl);
+        while (normalizedBaseUrl.endsWith("/"))
+        {
+            normalizedBaseUrl = normalizedBaseUrl.substring(0, normalizedBaseUrl.length() - 1);
+        }
+        return normalizedBaseUrl;
+    }
+
     private String readBody(InputStream inputStream) throws IOException
     {
         if (inputStream == null)
@@ -147,5 +263,10 @@ public class OpenAiCompatibleChatModelAdapter implements IAiChatModelAdapter
             }
         }
         return body.toString();
+    }
+
+    private static class EndpointNotFoundException extends RuntimeException
+    {
+        private static final long serialVersionUID = 1L;
     }
 }
