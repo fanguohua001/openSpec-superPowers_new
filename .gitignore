@@ -42,6 +42,7 @@ nbdist/
 *.xml.versionsBackup
 *.swp
 .worktrees/
+.local-run/
 
 !*/build/*.java
 !*/build/*.html
