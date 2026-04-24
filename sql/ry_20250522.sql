@@ -702,3 +702,59 @@ create table gen_table_column (
   update_time       datetime                                   comment '更新时间',
   primary key (column_id)
 ) engine=innodb auto_increment=1 comment = '代码生成业务表字段';
+
+-- ----------------------------
+-- 20、AI聊天会话表
+-- ----------------------------
+drop table if exists ai_chat_session;
+create table ai_chat_session (
+  session_id     bigint(20)      not null auto_increment    comment '会话ID',
+  user_id        bigint(20)      not null                   comment '用户ID',
+  title          varchar(200)    default ''                 comment '会话标题',
+  model          varchar(100)    default ''                 comment '模型名称',
+  status         char(1)         default '0'                comment '状态（0正常 1删除）',
+  create_by      varchar(64)     default ''                 comment '创建者',
+  create_time    datetime                                   comment '创建时间',
+  update_by      varchar(64)     default ''                 comment '更新者',
+  update_time    datetime                                   comment '更新时间',
+  remark         varchar(500)    default null               comment '备注',
+  primary key (session_id),
+  key idx_ai_chat_session_user (user_id, status, update_time)
+) engine=innodb auto_increment=1 comment = 'AI聊天会话表';
+
+-- ----------------------------
+-- 21、AI聊天消息表
+-- ----------------------------
+drop table if exists ai_chat_message;
+create table ai_chat_message (
+  message_id     bigint(20)      not null auto_increment    comment '消息ID',
+  session_id     bigint(20)      not null                   comment '会话ID',
+  user_id        bigint(20)      not null                   comment '用户ID',
+  role           varchar(20)     not null                   comment '角色（user assistant system）',
+  content        longtext                                   comment '消息内容',
+  status         char(1)         default '0'                comment '状态（0正常 1生成中 2失败）',
+  error_message  varchar(1000)   default null               comment '失败原因',
+  create_time    datetime                                   comment '创建时间',
+  primary key (message_id),
+  key idx_ai_chat_message_session (session_id, create_time),
+  key idx_ai_chat_message_user (user_id, session_id)
+) engine=innodb auto_increment=1 comment = 'AI聊天消息表';
+
+
+-- ----------------------------
+-- AI聊天菜单
+-- ----------------------------
+insert into sys_menu values('118', 'AI聊天', '3', '4', 'aiChat', 'tool/aiChat/index', '', '', 1, 0, 'C', '0', '0', 'tool:aiChat:list', 'message', 'admin', sysdate(), '', null, 'AI聊天菜单');
+insert into sys_menu values('1180', 'AI聊天查询', '118', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'tool:aiChat:list', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1181', 'AI聊天发送', '118', '2', '', '', '', '', 1, 0, 'F', '0', '0', 'tool:aiChat:send', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1182', 'AI聊天删除', '118', '3', '', '', '', '', 1, 0, 'F', '0', '0', 'tool:aiChat:remove', '#', 'admin', sysdate(), '', null, '');
+
+
+-- ----------------------------
+-- AI聊天参数
+-- ----------------------------
+insert into sys_config values(200, 'AI服务地址', 'ai.chat.baseUrl', '', 'Y', 'admin', sysdate(), '', null, 'OpenAI兼容接口基础地址，例如 https://api.example.com');
+insert into sys_config values(201, 'AI服务密钥', 'ai.chat.apiKey', '', 'Y', 'admin', sysdate(), '', null, 'AI模型服务API Key');
+insert into sys_config values(202, 'AI模型名称', 'ai.chat.model', '', 'Y', 'admin', sysdate(), '', null, 'AI聊天默认模型名称');
+insert into sys_config values(203, 'AI温度参数', 'ai.chat.temperature', '0.7', 'Y', 'admin', sysdate(), '', null, 'AI聊天temperature参数');
+insert into sys_config values(204, 'AI超时时间', 'ai.chat.timeoutSeconds', '60', 'Y', 'admin', sysdate(), '', null, 'AI聊天请求超时时间，单位秒');
