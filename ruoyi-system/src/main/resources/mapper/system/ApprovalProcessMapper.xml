@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.ApprovalProcessMapper">
+
+    <resultMap type="ApprovalProcess" id="ApprovalProcessResult">
+        <id property="processId" column="process_id" />
+        <result property="processName" column="process_name" />
+        <result property="businessType" column="business_type" />
+        <result property="status" column="status" />
+        <result property="createBy" column="create_by" />
+        <result property="createTime" column="create_time" />
+        <result property="updateBy" column="update_by" />
+        <result property="updateTime" column="update_time" />
+        <result property="remark" column="remark" />
+    </resultMap>
+
+    <sql id="selectApprovalProcessVo">
+        select process_id, process_name, business_type, status, create_by, create_time, update_by, update_time, remark
+        from approval_process
+    </sql>
+
+    <select id="selectApprovalProcessById" parameterType="Long" resultMap="ApprovalProcessResult">
+        <include refid="selectApprovalProcessVo"/>
+        where process_id = #{processId}
+    </select>
+
+    <select id="selectEnabledApprovalProcessByBusinessType" parameterType="String" resultMap="ApprovalProcessResult">
+        <include refid="selectApprovalProcessVo"/>
+        where business_type = #{businessType} and status = '0'
+        limit 1
+    </select>
+
+    <select id="selectApprovalProcessList" parameterType="ApprovalProcess" resultMap="ApprovalProcessResult">
+        <include refid="selectApprovalProcessVo"/>
+        <where>
+            <if test="processName != null and processName != ''">
+                and process_name like concat('%', #{processName}, '%')
+            </if>
+            <if test="businessType != null and businessType != ''">
+                and business_type = #{businessType}
+            </if>
+            <if test="status != null and status != ''">
+                and status = #{status}
+            </if>
+        </where>
+        order by process_id desc
+    </select>
+
+    <insert id="insertApprovalProcess" parameterType="ApprovalProcess" useGeneratedKeys="true" keyProperty="processId">
+        insert into approval_process(process_name, business_type, status, create_by, create_time, remark)
+        values(#{processName}, #{businessType}, #{status}, #{createBy}, sysdate(), #{remark})
+    </insert>
+
+    <update id="updateApprovalProcess" parameterType="ApprovalProcess">
+        update approval_process
+        <set>
+            <if test="processName != null and processName != ''">process_name = #{processName},</if>
+            <if test="businessType != null and businessType != ''">business_type = #{businessType},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </set>
+        where process_id = #{processId}
+    </update>
+
+    <delete id="deleteApprovalProcessByIds" parameterType="Long">
+        delete from approval_process where process_id in
+        <foreach collection="array" item="processId" open="(" separator="," close=")">
+            #{processId}
+        </foreach>
+    </delete>
+</mapper>

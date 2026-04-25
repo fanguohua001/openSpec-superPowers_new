@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.ApprovalRecordMapper">
+
+    <resultMap type="ApprovalRecord" id="ApprovalRecordResult">
+        <id property="recordId" column="record_id" />
+        <result property="instanceId" column="instance_id" />
+        <result property="taskId" column="task_id" />
+        <result property="fromNodeId" column="from_node_id" />
+        <result property="toNodeId" column="to_node_id" />
+        <result property="action" column="action" />
+        <result property="comment" column="comment" />
+        <result property="operatorUserId" column="operator_user_id" />
+        <result property="createBy" column="create_by" />
+        <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <select id="selectApprovalRecordsByInstanceId" parameterType="Long" resultMap="ApprovalRecordResult">
+        select record_id, instance_id, task_id, from_node_id, to_node_id, action, comment,
+               operator_user_id, create_by, create_time
+        from approval_record
+        where instance_id = #{instanceId}
+        order by create_time asc, record_id asc
+    </select>
+
+    <insert id="insertApprovalRecord" parameterType="ApprovalRecord" useGeneratedKeys="true" keyProperty="recordId">
+        insert into approval_record(instance_id, task_id, from_node_id, to_node_id, action,
+            comment, operator_user_id, create_by, create_time)
+        values(#{instanceId}, #{taskId}, #{fromNodeId}, #{toNodeId}, #{action},
+            #{comment}, #{operatorUserId}, #{createBy}, sysdate())
+    </insert>
+</mapper>

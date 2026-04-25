@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.ApprovalNodeApproverMapper">
+
+    <resultMap type="ApprovalNodeApprover" id="ApprovalNodeApproverResult">
+        <id property="approverId" column="approver_id" />
+        <result property="nodeId" column="node_id" />
+        <result property="approverType" column="approver_type" />
+        <result property="userId" column="user_id" />
+        <result property="roleId" column="role_id" />
+        <result property="createBy" column="create_by" />
+        <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <select id="selectApprovalNodeApproversByNodeId" parameterType="Long" resultMap="ApprovalNodeApproverResult">
+        select approver_id, node_id, approver_type, user_id, role_id, create_by, create_time
+        from approval_node_approver
+        where node_id = #{nodeId}
+        order by approver_id asc
+    </select>
+
+    <insert id="insertApprovalNodeApprover" parameterType="ApprovalNodeApprover" useGeneratedKeys="true" keyProperty="approverId">
+        insert into approval_node_approver(node_id, approver_type, user_id, role_id, create_by, create_time)
+        values(#{nodeId}, #{approverType}, #{userId}, #{roleId}, #{createBy}, sysdate())
+    </insert>
+
+    <delete id="deleteApprovalNodeApproversByNodeId" parameterType="Long">
+        delete from approval_node_approver where node_id = #{nodeId}
+    </delete>
+</mapper>

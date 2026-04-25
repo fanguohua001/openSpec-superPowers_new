@@ -37,6 +37,14 @@ public interface SysUserMapper
     public List<SysUser> selectUnallocatedList(SysUser user);
 
     /**
+     * 通过角色ID查询用户ID列表
+     *
+     * @param roleId 角色ID
+     * @return 用户ID列表
+     */
+    public List<Long> selectUserIdsByRoleId(Long roleId);
+
+    /**
      * 通过用户名查询用户
      * 
      * @param userName 用户名

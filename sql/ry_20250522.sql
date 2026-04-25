@@ -758,3 +758,140 @@ insert into sys_config values(201, 'AI服务密钥', 'ai.chat.apiKey', '', 'Y', 
 insert into sys_config values(202, 'AI模型名称', 'ai.chat.model', '', 'Y', 'admin', sysdate(), '', null, 'AI聊天默认模型名称');
 insert into sys_config values(203, 'AI温度参数', 'ai.chat.temperature', '0.7', 'Y', 'admin', sysdate(), '', null, 'AI聊天temperature参数');
 insert into sys_config values(204, 'AI超时时间', 'ai.chat.timeoutSeconds', '60', 'Y', 'admin', sysdate(), '', null, 'AI聊天请求超时时间，单位秒');
+
+
+-- ----------------------------
+-- 22、审批流程定义表
+-- ----------------------------
+drop table if exists approval_process;
+create table approval_process (
+  process_id     bigint(20)      not null auto_increment    comment '流程ID',
+  process_name   varchar(100)    not null                   comment '流程名称',
+  business_type  varchar(100)    not null                   comment '业务类型',
+  status         char(1)         default '1'                comment '状态（0启用 1停用）',
+  create_by      varchar(64)     default ''                 comment '创建者',
+  create_time    datetime                                   comment '创建时间',
+  update_by      varchar(64)     default ''                 comment '更新者',
+  update_time    datetime                                   comment '更新时间',
+  remark         varchar(500)    default null               comment '备注',
+  primary key (process_id),
+  key idx_approval_process_business (business_type, status)
+) engine=innodb auto_increment=1 comment = '审批流程定义表';
+
+-- ----------------------------
+-- 23、审批节点定义表
+-- ----------------------------
+drop table if exists approval_node;
+create table approval_node (
+  node_id      bigint(20)      not null auto_increment    comment '节点ID',
+  process_id   bigint(20)      not null                   comment '流程ID',
+  node_name    varchar(100)    not null                   comment '节点名称',
+  node_order   int(4)          not null                   comment '节点顺序',
+  status       char(1)         default '0'                comment '状态（0正常 1停用）',
+  create_by    varchar(64)     default ''                 comment '创建者',
+  create_time  datetime                                   comment '创建时间',
+  update_by    varchar(64)     default ''                 comment '更新者',
+  update_time  datetime                                   comment '更新时间',
+  remark       varchar(500)    default null               comment '备注',
+  primary key (node_id),
+  key idx_approval_node_process (process_id, node_order)
+) engine=innodb auto_increment=1 comment = '审批节点定义表';
+
+-- ----------------------------
+-- 24、审批节点审批人表
+-- ----------------------------
+drop table if exists approval_node_approver;
+create table approval_node_approver (
+  approver_id    bigint(20)      not null auto_increment    comment '审批人规则ID',
+  node_id        bigint(20)      not null                   comment '节点ID',
+  approver_type  varchar(20)     not null                   comment '审批人类型（USER用户 ROLE角色）',
+  user_id        bigint(20)      default null               comment '用户ID',
+  role_id        bigint(20)      default null               comment '角色ID',
+  create_by      varchar(64)     default ''                 comment '创建者',
+  create_time    datetime                                   comment '创建时间',
+  primary key (approver_id),
+  key idx_approval_node_approver_node (node_id)
+) engine=innodb auto_increment=1 comment = '审批节点审批人表';
+
+-- ----------------------------
+-- 25、审批实例表
+-- ----------------------------
+drop table if exists approval_instance;
+create table approval_instance (
+  instance_id      bigint(20)      not null auto_increment    comment '实例ID',
+  process_id       bigint(20)      not null                   comment '流程ID',
+  business_type    varchar(100)    not null                   comment '业务类型',
+  business_id      varchar(100)    not null                   comment '业务主键',
+  business_title   varchar(200)    default ''                 comment '业务标题',
+  starter_user_id  bigint(20)      not null                   comment '发起人ID',
+  current_node_id  bigint(20)      default null               comment '当前节点ID',
+  status           varchar(20)     not null                   comment '实例状态',
+  create_by        varchar(64)     default ''                 comment '创建者',
+  create_time      datetime                                   comment '创建时间',
+  update_by        varchar(64)     default ''                 comment '更新者',
+  update_time      datetime                                   comment '更新时间',
+  remark           varchar(500)    default null               comment '备注',
+  primary key (instance_id),
+  key idx_approval_instance_business (business_type, business_id),
+  key idx_approval_instance_starter (starter_user_id, status),
+  key idx_approval_instance_status (status)
+) engine=innodb auto_increment=1 comment = '审批实例表';
+
+-- ----------------------------
+-- 26、审批任务表
+-- ----------------------------
+drop table if exists approval_task;
+create table approval_task (
+  task_id           bigint(20)      not null auto_increment    comment '任务ID',
+  instance_id       bigint(20)      not null                   comment '实例ID',
+  node_id           bigint(20)      not null                   comment '节点ID',
+  approver_user_id  bigint(20)      not null                   comment '审批人用户ID',
+  status            varchar(20)     not null                   comment '任务状态',
+  handled_time      datetime                                   comment '处理时间',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime                                   comment '创建时间',
+  update_by         varchar(64)     default ''                 comment '更新者',
+  update_time       datetime                                   comment '更新时间',
+  remark            varchar(500)    default null               comment '备注',
+  primary key (task_id),
+  key idx_approval_task_user (approver_user_id, status),
+  key idx_approval_task_instance_node (instance_id, node_id, status)
+) engine=innodb auto_increment=1 comment = '审批任务表';
+
+-- ----------------------------
+-- 27、审批记录表
+-- ----------------------------
+drop table if exists approval_record;
+create table approval_record (
+  record_id         bigint(20)      not null auto_increment    comment '记录ID',
+  instance_id       bigint(20)      not null                   comment '实例ID',
+  task_id           bigint(20)      default null               comment '任务ID',
+  from_node_id      bigint(20)      default null               comment '原节点ID',
+  to_node_id        bigint(20)      default null               comment '目标节点ID',
+  action            varchar(20)     not null                   comment '动作（approve同意 reject驳回）',
+  comment           varchar(1000)   default null               comment '审批意见',
+  operator_user_id  bigint(20)      not null                   comment '操作人用户ID',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime                                   comment '创建时间',
+  primary key (record_id),
+  key idx_approval_record_instance (instance_id, create_time)
+) engine=innodb auto_increment=1 comment = '审批记录表';
+
+
+-- ----------------------------
+-- 审批管理菜单
+-- ----------------------------
+insert into sys_menu values('119', '审批管理', '0', '5', 'approval', null, '', '', 1, 0, 'M', '0', '0', '', 'validCode', 'admin', sysdate(), '', null, '审批管理目录');
+insert into sys_menu values('120', '流程定义', '119', '1', 'process', 'approval/process/index', '', '', 1, 0, 'C', '0', '0', 'approval:process:list', 'tree-table', 'admin', sysdate(), '', null, '审批流程定义菜单');
+insert into sys_menu values('121', '我的申请', '119', '2', 'instance', 'approval/instance/index', '', '', 1, 0, 'C', '0', '0', 'approval:instance:list', 'form', 'admin', sysdate(), '', null, '我的审批申请菜单');
+insert into sys_menu values('122', '待我审批', '119', '3', 'task', 'approval/task/index', '', '', 1, 0, 'C', '0', '0', 'approval:task:list', 'date-range', 'admin', sysdate(), '', null, '待我审批菜单');
+insert into sys_menu values('1190', '流程查询', '120', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:process:query', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1191', '流程新增', '120', '2', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:process:add', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1192', '流程修改', '120', '3', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:process:edit', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1193', '流程删除', '120', '4', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:process:remove', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1194', '流程启停', '120', '5', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:process:enable', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1195', '申请查询', '121', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:instance:query', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1196', '发起审批', '121', '2', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:instance:start', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1197', '待办查询', '122', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:task:list', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1198', '审批同意', '122', '2', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:task:approve', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1199', '审批驳回', '122', '3', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:task:reject', '#', 'admin', sysdate(), '', null, '');
