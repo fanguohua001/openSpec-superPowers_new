@@ -895,3 +895,11 @@ insert into sys_menu values('1196', '发起审批', '121', '2', '', '', '', '', 
 insert into sys_menu values('1197', '待办查询', '122', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:task:list', '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1198', '审批同意', '122', '2', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:task:approve', '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1199', '审批驳回', '122', '3', '', '', '', '', 1, 0, 'F', '0', '0', 'approval:task:reject', '#', 'admin', sysdate(), '', null, '');
+
+-- ----------------------------
+-- 休闲游戏菜单
+-- ----------------------------
+insert into sys_menu values('123', '休闲游戏', '0', '6', 'game', null, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', sysdate(), '', null, '休闲游戏目录');
+insert into sys_menu values('124', '扫雷', '123', '1', 'minesweeper', 'game/minesweeper/index', '', '', 1, 0, 'C', '0', '0', 'game:minesweeper:view', 'bug', 'admin', sysdate(), '', null, '扫雷游戏菜单');
+insert into sys_role_menu values ('2', '123');
+insert into sys_role_menu values ('2', '124');
