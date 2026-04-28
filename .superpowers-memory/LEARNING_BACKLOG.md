@@ -60,3 +60,27 @@
 - 新增 RuoYi 动态菜单入口时，同时检查 `sys_menu`、`sys_role_menu`、前端组件路径、角色权限和重新登录刷新。
 - 对已初始化数据库，除修改完整初始化 SQL 外，还应提供幂等增量 SQL。
 - 含中文 SQL 在 Windows 下执行时，应显式指定 `utf8mb4` 并优先使用 MySQL `source`，避免管道编码损坏中文。
+
+### 候选：技能脚本资源可用性检查
+- candidate_id: learn-2026-04-28-skill-resource-availability-check
+- type: learning_candidate
+- status: proposed
+- confidence: verified_once
+- last_updated: 2026-04-28
+- source: 修复 `ui-ux-pro-max` 的 `scripts` 和 `data` 资源目录
+- owner: 本机 Codex/Agents 技能环境
+- review_after: 下次遇到技能脚本或数据文件缺失时
+- trigger: 技能文档引用 `scripts/`、`data/` 或其他资源目录，但工具运行报文件不存在
+- repeated_pattern: 待验证；当前已出现一次明确案例
+- impact: 可避免误判为 Python 或命令问题，快速定位技能安装资源损坏
+- evidence_count: 1
+- repeated_times: 1
+- suggested_artifact: 技能故障排查检查清单
+- promote_decision: 暂不提升；若其他技能也出现资源指针文件失效，再提升为正式规则
+- linked_entries: `failure-2026-04-28-skill-resource-pointer-files`
+
+候选经验：
+
+- 运行技能脚本失败时，先检查资源路径是目录还是普通文件。
+- 若是指针文件，读取其内容并搜索本机插件缓存中真实资源。
+- 修复后运行该技能的代表性命令，而不是只看文件复制成功。

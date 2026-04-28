@@ -901,5 +901,7 @@ insert into sys_menu values('1199', '审批驳回', '122', '3', '', '', '', '', 
 -- ----------------------------
 insert into sys_menu values('123', '休闲游戏', '0', '6', 'game', null, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', sysdate(), '', null, '休闲游戏目录');
 insert into sys_menu values('124', '扫雷', '123', '1', 'minesweeper', 'game/minesweeper/index', '', '', 1, 0, 'C', '0', '0', 'game:minesweeper:view', 'bug', 'admin', sysdate(), '', null, '扫雷游戏菜单');
+insert into sys_menu values('125', '跳棋', '123', '2', 'chinese-checkers', 'game/chinese-checkers/index', '', '', 1, 0, 'C', '0', '0', 'game:chinese-checkers:view', 'guide', 'admin', sysdate(), '', null, '中国跳棋游戏菜单');
 insert into sys_role_menu values ('2', '123');
 insert into sys_role_menu values ('2', '124');
+insert into sys_role_menu values ('2', '125');

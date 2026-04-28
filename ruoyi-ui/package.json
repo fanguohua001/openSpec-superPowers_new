@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vue-cli-service serve",
     "test:minesweeper": "node src/views/game/minesweeper/minesweeper.test.js",
+    "test:chinese-checkers": "node src/views/game/chinese-checkers/chineseCheckers.test.js",
     "build:prod": "vue-cli-service build",
     "build:stage": "vue-cli-service build --mode staging",
     "preview": "node build/index.js --preview"
