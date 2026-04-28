@@ -104,3 +104,44 @@ where rm.menu_id in (123, 124);
 缓解方式：
 
 新增动态菜单时同步提供初始化 SQL 和已初始化数据库的增量 SQL。增量脚本应写入 `sys_menu`，并按目标角色写入 `sys_role_menu`。执行后重新登录前端，让 `/getRouters` 重新生成路由。Windows PowerShell 中不要用管道直接把含中文 SQL 传给 `mysql`，优先使用 `mysql --default-character-set=utf8mb4 ... -e "source E:/path/file.sql"`，避免中文变成 `????`。
+
+### 失败模式：技能资源目录被普通指针文件替代
+- id: failure-2026-04-28-skill-resource-pointer-files
+- type: failure_pattern
+- status: active
+- confidence: verified
+- last_updated: 2026-04-28
+- source: `ui-ux-pro-max` 技能的 `scripts/search.py` 运行失败；检查 `C:\Users\Administrator\.agents\skills\ui-ux-pro-max`
+- owner: 本机 Codex/Agents 技能环境
+- review_after: 下次技能脚本报找不到文件时复审
+
+触发条件：
+
+技能文档要求运行类似 `skills/<skill>/scripts/search.py` 的脚本，但技能目录下的 `scripts` 或 `data` 不是目录，而是普通文本文件。
+
+现象：
+
+运行脚本时报错，例如：
+
+```text
+can't open file '...\ui-ux-pro-max\scripts\search.py': [Errno 2] No such file or directory
+```
+
+同时 `Get-ChildItem` 显示 `scripts` 和 `data` 的 `Mode` 是 `-a----`，不是 `d-----`。
+
+可能原因：
+
+技能安装时把资源目录保存成了相对路径指针文件，例如 `../../../src/ui-ux-pro-max/scripts`，但该相对路径在当前机器上无法解析。真实资源可能仍存在于插件缓存或 marketplace 目录中。
+
+检测方式：
+
+```powershell
+Get-ChildItem -Force -LiteralPath 'C:\Users\Administrator\.agents\skills\ui-ux-pro-max'
+Get-Content -LiteralPath 'C:\Users\Administrator\.agents\skills\ui-ux-pro-max\scripts'
+Get-ChildItem -Path 'C:\Users\Administrator' -Recurse -Force -ErrorAction SilentlyContinue -Filter 'search.py' |
+  Where-Object { $_.FullName -like '*ui-ux-pro-max*' }
+```
+
+缓解方式：
+
+从可用插件缓存恢复真实资源目录。本机已用 `C:\Users\Administrator\.claude\plugins\marketplaces\ui-ux-pro-max-skill\src\ui-ux-pro-max\scripts` 和 `data` 替换 `.agents\skills\ui-ux-pro-max` 下失效的指针文件。修复后至少运行一次 `search.py --design-system` 和 `search.py --domain ux` 验证。
